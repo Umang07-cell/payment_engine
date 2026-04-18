@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Settlement & Transaction Exception Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0a0e1a; --surface:#111827; --surface2:#1a2235; --border:#1e2d45;
+    --accent:#00d4ff; --accent2:#0aff9d; --warn:#ffb800; --danger:#ff4757;
+    --success:#0aff9d; --text:#e2e8f0; --muted:#64748b;
+    --font:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(0,212,255,.03)1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.03)1px,transparent 1px);
+    background-size:40px 40px;}
+  .wrapper{position:relative;z-index:1;display:flex;height:100vh;}
+
+  /* SIDEBAR */
+  .sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+  .logo{padding:20px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#000;font-family:var(--mono);}
+  .logo-text{font-size:13px;font-weight:600;line-height:1.3;}
+  .logo-sub{font-size:10px;color:var(--muted);font-family:var(--mono);}
+  nav{padding:16px 0;flex:1;}
+  .nav-label{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:8px 18px 4px;font-family:var(--mono);}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .15s;border-left:2px solid transparent;}
+  .nav-item:hover{color:var(--text);background:var(--surface2);}
+  .nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(0,212,255,.06);}
+  .nav-item .badge{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;border-radius:10px;padding:1px 7px;font-family:var(--mono);}
+  .sidebar-footer{padding:16px 18px;border-top:1px solid var(--border);}
+  .sys-status{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+  /* MAIN */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .topbar{padding:16px 28px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .page-title{font-size:18px;font-weight:700;}
+  .page-sub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+  .topbar-actions{display:flex;gap:10px;}
+  .content{flex:1;overflow-y:auto;padding:24px 28px;}
+
+  /* BUTTONS */
+  .btn{padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-primary:hover{background:#00b8d9;}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+  .btn-ghost:hover{color:var(--text);border-color:var(--accent);}
+  .btn-danger{background:rgba(255,71,87,.15);color:var(--danger);border:1px solid rgba(255,71,87,.3);}
+  .btn-success{background:rgba(10,255,157,.12);color:var(--success);border:1px solid rgba(10,255,157,.3);}
+  .btn-warn{background:rgba(255,184,0,.12);color:var(--warn);border:1px solid rgba(255,184,0,.3);}
+
+  /* PAGES */
+  .page{display:none;}
+  .page.active{display:block;animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+  /* KPI */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;position:relative;overflow:hidden;}
+  .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+  .kpi.blue::before{background:var(--accent);}
+  .kpi.green::before{background:var(--success);}
+  .kpi.yellow::before{background:var(--warn);}
+  .kpi.red::before{background:var(--danger);}
+  .kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);}
+  .kpi-value{font-size:28px;font-weight:700;margin:6px 0 4px;font-family:var(--mono);}
+  .kpi-delta{font-size:11px;color:var(--muted);}
+  .kpi-delta.up{color:var(--success);}
+  .kpi-delta.down{color:var(--danger);}
+
+  /* CARD / TABLE */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:20px;}
+  .card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .card-title{font-size:14px;font-weight:600;}
+  .card-sub{font-size:11px;color:var(--muted);font-family:var(--mono);}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .filter-select,.filter-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-size:12px;font-family:var(--font);outline:none;cursor:pointer;}
+  .filter-input{width:200px;}
+  .filter-input:focus,.filter-select:focus{border-color:var(--accent);}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:10px 16px;text-align:left;font-family:var(--mono);border-bottom:1px solid var(--border);}
+  td{font-size:12px;padding:12px 16px;border-bottom:1px solid rgba(30,45,69,.5);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:rgba(0,212,255,.03);}
+  .mono{font-family:var(--mono);font-size:11px;}
+  .badge-status{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--mono);text-transform:uppercase;}
+  .s-settled{background:rgba(10,255,157,.12);color:var(--success);}
+  .s-pending{background:rgba(255,184,0,.12);color:var(--warn);}
+  .s-failed{background:rgba(255,71,87,.12);color:var(--danger);}
+  .s-exception{background:rgba(255,71,87,.18);color:#ff6b7a;border:1px solid rgba(255,71,87,.3);}
+  .s-processing{background:rgba(0,212,255,.1);color:var(--accent);}
+  .s-resolved{background:rgba(10,255,157,.08);color:#6effc2;}
+  .s-open{background:rgba(255,71,87,.12);color:var(--danger);}
+  .s-in-review{background:rgba(255,184,0,.12);color:var(--warn);}
+  .sev-critical{color:var(--danger);font-weight:600;font-family:var(--mono);font-size:11px;}
+  .sev-high{color:var(--warn);font-family:var(--mono);font-size:11px;}
+  .sev-medium{color:#a78bfa;font-family:var(--mono);font-size:11px;}
+  .sev-low{color:var(--muted);font-family:var(--mono);font-size:11px;}
+  .pagination{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);}
+  .pagination span{font-size:12px;color:var(--muted);font-family:var(--mono);}
+  .page-btns{display:flex;gap:4px;}
+  .page-btn{width:30px;height:30px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s;}
+  .page-btn:hover,.page-btn.active{background:var(--accent);color:#000;border-color:var(--accent);}
+
+  /* CHARTS */
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+  .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;}
+  .chart-title{font-size:13px;font-weight:600;margin-bottom:16px;}
+  canvas{max-height:200px;}
+
+  /* FORM */
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:20px;}
+  .form-group{display:flex;flex-direction:column;gap:6px;}
+  .form-group.full{grid-column:1/-1;}
+  label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);}
+  input,select,textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:6px;font-size:13px;font-family:var(--font);outline:none;transition:border-color .15s;}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+  textarea{resize:vertical;min-height:80px;}
+  .form-actions{padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end;}
+
+  /* RECON */
+  .recon-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+  .recon-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center;}
+  .recon-num{font-size:32px;font-weight:700;font-family:var(--mono);margin:8px 0 4px;}
+  .recon-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);}
+  .match-bar-bg{background:var(--surface2);border-radius:99px;height:8px;margin:8px 0;}
+  .match-bar{height:8px;border-radius:99px;background:linear-gradient(90deg,var(--success),var(--accent));transition:width 1s ease;}
+
+  /* MODAL */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:520px;max-height:90vh;overflow-y:auto;}
+  .modal-header{padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+  .modal-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;}
+  .detail-row{display:flex;padding:10px 20px;border-bottom:1px solid rgba(30,45,69,.5);}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-key{width:160px;font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;flex-shrink:0;padding-top:1px;}
+  .detail-val{font-size:13px;}
+
+  /* TOAST */
+  #toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;}
+  .toast{padding:12px 18px;border-radius:8px;font-size:13px;font-weight:500;animation:slideIn .3s ease;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.4);}
+  .toast-success{background:#0d2a1f;border:1px solid var(--success);color:var(--success);}
+  .toast-error{background:#2a0d10;border:1px solid var(--danger);color:var(--danger);}
+  .toast-info{background:#0d1a2a;border:1px solid var(--accent);color:var(--accent);}
+  @keyframes slideIn{from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:none;}}
+
+  /* SPINNER */
+  .loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);font-family:var(--mono);font-size:13px;gap:10px;}
+  .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+  @media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr;}.charts-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div style="font-size:15px;font-weight:700" id="modal-title">Details</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--mono)" id="modal-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div class="wrapper">
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">PS</div>
+      <div>
+        <div class="logo-text">PaySettle Engine</div>
+        <div class="logo-sub">v2.1 · Flask + SQLite</div>
+      </div>
+    </div>
+    <nav>
+      <div class="nav-label">Core</div>
+      <div class="nav-item active" onclick="showPage('dashboard',this)">⬛ Dashboard</div>
+      <div class="nav-item" onclick="showPage('transactions',this)">↔ Transactions</div>
+      <div class="nav-item" onclick="showPage('settlement',this)">✓ Settlement</div>
+      <div class="nav-label" style="margin-top:8px">Exceptions</div>
+      <div class="nav-item" onclick="showPage('exceptions',this)">⚠ Exception Log <span class="badge" id="exc-badge">…</span></div>
+      <div class="nav-item" onclick="showPage('reconcile',this)">⟳ Reconciliation</div>
+      <div class="nav-label" style="margin-top:8px">Management</div>
+      <div class="nav-item" onclick="showPage('add-transaction',this)">+ Add Transaction</div>
+      <div class="nav-item" onclick="showPage('reports',this)">📊 Reports</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sys-status"><div class="pulse"></div>Engine Running</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)" id="clock"></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="page-title" id="page-title">Dashboard</div>
+        <div class="page-sub" id="page-sub">Real-time settlement monitoring</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost" onclick="apiReconcile()">⟳ Reconcile Now</button>
+        <button class="btn btn-primary" onclick="showPage('add-transaction',null)">+ New Transaction</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div id="page-dashboard" class="page active">
+        <div class="kpi-grid">
+          <div class="kpi blue"><div class="kpi-label">Total Transactions</div><div class="kpi-value" id="kpi-total">…</div><div class="kpi-delta up" id="kpi-rate">—</div></div>
+          <div class="kpi green"><div class="kpi-label">Settled</div><div class="kpi-value" id="kpi-settled">…</div><div class="kpi-delta up">Amount reconciled</div></div>
+          <div class="kpi yellow"><div class="kpi-label">Pending</div><div class="kpi-value" id="kpi-pending">…</div><div class="kpi-delta down">Awaiting clearance</div></div>
+          <div class="kpi red"><div class="kpi-label">Open Exceptions</div><div class="kpi-value" id="kpi-exc">…</div><div class="kpi-delta down">Requires action</div></div>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-box"><div class="chart-title">Transaction Volume — Last 7 Days</div><canvas id="chart-vol"></canvas></div>
+          <div class="chart-box"><div class="chart-title">Status Distribution</div><canvas id="chart-status"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Recent Transactions</div><div class="card-sub">Latest 10 entries</div></div><button class="btn btn-ghost" onclick="showPage('transactions',null)">View All →</button></div>
+          <div id="dash-recent"></div>
+        </div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div id="page-transactions" class="page">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">All Transactions</div><div class="card-sub" id="txn-label">—</div></div>
+            <div class="filters">
+              <input class="filter-input" id="f-search" placeholder="Search ID / Sender…" oninput="loadTransactions(1)">
+              <select class="filter-select" id="f-status" onchange="loadTransactions(1)">
+                <option value="">All Status</option>
+                <option>Settled</option><option>Pending</option><option>Processing</option><option>Failed</option><option>Exception</option>
+              </select>
+              <select class="filter-select" id="f-type" onchange="loadTransactions(1)">
+                <option value="">All Types</option>
+                <option>Credit</option><option>Debit</option><option>Refund</option><option>Transfer</option>
+              </select>
+              <select class="filter-select" id="f-channel" onchange="loadTransactions(1)">
+                <option value="">All Channels</option>
+                <option>UPI</option><option>NEFT</option><option>RTGS</option><option>IMPS</option><option>Card</option><option>Wallet</option>
+              </select>
+            </div>
+          </div>
+          <div id="txn-table"></div>
+          <div class="pagination"><span id="txn-pg-info"></span><div class="page-btns" id="txn-pg-btns"></div></div>
+        </div>
+      </div>
+
+      <!-- SETTLEMENT -->
+      <div id="page-settlement" class="page">
+        <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi green"><div class="kpi-label">Settlement Rate</div><div class="kpi-value" id="s-rate">…</div><div class="kpi-delta up">Accuracy metric</div></div>
+          <div class="kpi blue"><div class="kpi-label">Total Settled (₹)</div><div class="kpi-value" id="s-amount">…</div><div class="kpi-delta up">Cumulative</div></div>
+          <div class="kpi yellow"><div class="kpi-label">Manual vs Auto</div><div class="kpi-value" id="s-modes">…</div><div class="kpi-delta">Settlement modes</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Settled Transactions</div><div class="card-sub">Fully reconciled entries</div></div>
+            <button class="btn btn-success" onclick="settleAllPending()">✓ Settle All Pending</button>
+          </div>
+          <div id="settlement-table"></div>
+          <div class="pagination"><span id="s-pg-info"></span><div class="page-btns" id="s-pg-btns"></div></div>
+        </div>
+      </div>
+
+      <!-- EXCEPTIONS -->
+      <div id="page-exceptions" class="page">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Exception Log</div><div class="card-sub" id="exc-label">—</div></div>
+            <div class="filters">
+              <select class="filter-select" id="ef-sev" onchange="loadExceptions(1)">
+                <option value="">All Severity</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+              </select>
+              <select class="filter-select" id="ef-status" onchange="loadExceptions(1)">
+                <option value="">All Status</option><option>Open</option><option>In Review</option><option>Resolved</option>
+              </select>
+              <button class="btn btn-warn" onclick="detectExceptions()">⚡ Run Detection</button>
+              <button class="btn btn-success" onclick="resolveAll()">✓ Resolve All</button>
+            </div>
+          </div>
+          <div id="exc-table"></div>
+          <div class="pagination"><span id="exc-pg-info"></span><div class="page-btns" id="exc-pg-btns"></div></div>
+        </div>
+      </div>
+
+      <!-- RECONCILIATION -->
+      <div id="page-reconcile" class="page">
+        <div class="recon-grid">
+          <div class="recon-card">
+            <div class="recon-label">Matched Records</div>
+            <div class="recon-num" style="color:var(--success)" id="r-matched">—</div>
+            <div class="match-bar-bg"><div class="match-bar" id="r-bar" style="width:0%"></div></div>
+          </div>
+          <div class="recon-card">
+            <div class="recon-label">Unmatched Records</div>
+            <div class="recon-num" style="color:var(--danger)" id="r-unmatched">—</div>
+          </div>
+          <div class="recon-card">
+            <div class="recon-label">Match Rate</div>
+            <div class="recon-num" style="color:var(--accent)" id="r-rate">—</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Reconciliation History</div><div class="card-sub">All engine runs</div></div>
+            <button class="btn btn-primary" onclick="apiReconcile()">⟳ Run Reconciliation</button>
+          </div>
+          <div id="recon-table"></div>
+        </div>
+      </div>
+
+      <!-- ADD TRANSACTION -->
+      <div id="page-add-transaction" class="page">
+        <div class="card" style="max-width:700px">
+          <div class="card-header"><div><div class="card-title">New Transaction</div><div class="card-sub">Submit a payment record</div></div></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Sender *</label><input id="nf-sender" placeholder="e.g. HDFC Bank"></div>
+            <div class="form-group"><label>Receiver *</label><input id="nf-receiver" placeholder="e.g. Amazon Pay"></div>
+            <div class="form-group"><label>Amount (₹) *</label><input id="nf-amount" type="number" min="1" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>Date & Time</label><input id="nf-date" type="datetime-local"></div>
+            <div class="form-group"><label>Transaction Type *</label>
+              <select id="nf-type"><option>Credit</option><option>Debit</option><option>Refund</option><option>Transfer</option></select>
+            </div>
+            <div class="form-group"><label>Payment Channel *</label>
+              <select id="nf-channel"><option>UPI</option><option>NEFT</option><option>RTGS</option><option>IMPS</option><option>Card</option><option>Wallet</option></select>
+            </div>
+            <div class="form-group"><label>Status</label>
+              <select id="nf-status"><option>Pending</option><option>Settled</option><option>Processing</option><option>Failed</option></select>
+            </div>
+            <div class="form-group"><label>Reference No.</label><input id="nf-ref" placeholder="Optional"></div>
+            <div class="form-group full"><label>Notes</label><textarea id="nf-notes" placeholder="Optional description or reference…"></textarea></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" onclick="clearNewForm()">Clear</button>
+            <button class="btn btn-primary" onclick="submitNewTransaction()">Submit Transaction</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTS -->
+      <div id="page-reports" class="page">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+          <div class="chart-box"><div class="chart-title">Transactions by Channel</div><canvas id="chart-ch"></canvas></div>
+          <div class="chart-box"><div class="chart-title">Amount by Type (₹)</div><canvas id="chart-amt"></canvas></div>
+          <div class="chart-box"><div class="chart-title">Exception Severity</div><canvas id="chart-sev"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Summary by Transaction Type</div></div>
+            <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
+          </div>
+          <div id="report-table"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+{% raw %}
+// ── API BASE ──────────────────────────────────────────────────────────────────
+const API = '';  // same origin — Flask serves this page
+
+async function api(path, opts={}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({error:'Request failed'}));
+    throw new Error(err.error || 'Request failed');
+  }
+  return res.json();
+}
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+const pageMeta = {
+  dashboard:       ['Dashboard','Real-time settlement monitoring'],
+  transactions:    ['Transactions','All payment records'],
+  settlement:      ['Settlement','Finalized payment records'],
+  exceptions:      ['Exception Log','Flagged anomalies requiring action'],
+  reconcile:       ['Reconciliation','Automated matching engine'],
+  'add-transaction':['New Transaction','Submit a payment entry'],
+  reports:         ['Reports & Analytics','Performance insights'],
+};
+let activeNav = document.querySelector('.nav-item.active');
+
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (activeNav) activeNav.classList.remove('active');
+  if (el) { el.classList.add('active'); activeNav = el; }
+  const [title, sub] = pageMeta[id] || ['',''];
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-sub').textContent = sub;
+  if (id === 'dashboard')        loadDashboard();
+  if (id === 'transactions')     loadTransactions(1);
+  if (id === 'settlement')       loadSettlement(1);
+  if (id === 'exceptions')       loadExceptions(1);
+  if (id === 'reconcile')        loadReconcile();
+  if (id === 'add-transaction')  initNewForm();
+  if (id === 'reports')          loadReports();
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-IN', {hour12: false});
+}, 1000);
+
+// ── CHART REGISTRY ────────────────────────────────────────────────────────────
+const charts = {};
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = '#1e2d45';
+function mkChart(id, config) {
+  if (charts[id]) { charts[id].destroy(); }
+  charts[id] = new Chart(document.getElementById(id), config);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function fmt(n) { return Number(n).toLocaleString('en-IN', {maximumFractionDigits: 0}); }
+function fmtDate(iso) {
+  return new Date(iso).toLocaleString('en-IN', {dateStyle:'short', timeStyle:'short'});
+}
+function statusBadge(s) {
+  const cls = s.toLowerCase().replace(' ', '-');
+  return `<span class="badge-status s-${cls}">${s}</span>`;
+}
+function sevBadge(s) { return `<span class="sev-${s.toLowerCase()}">${s}</span>`; }
+
+function loading() {
+  return '<div class="loading"><div class="spinner"></div>Loading…</div>';
+}
+function empty(msg='No records found.') {
+  return `<div style="padding:30px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px">${msg}</div>`;
+}
+
+function buildPagination(pgInfo, pgBtns, total, pages, current, loadFn) {
+  document.getElementById(pgInfo).textContent =
+    `Page ${current} of ${pages || 1} · ${total} records`;
+  const c = document.getElementById(pgBtns);
+  c.innerHTML = '';
+  for (let i = 1; i <= pages; i++) {
+    const b = document.createElement('button');
+    b.className = 'page-btn' + (i === current ? ' active' : '');
+    b.textContent = i;
+    b.onclick = () => loadFn(i);
+    c.appendChild(b);
+  }
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const d = await api('/api/dashboard/stats');
+    document.getElementById('kpi-total').textContent   = d.total;
+    document.getElementById('kpi-settled').textContent = d.settled;
+    document.getElementById('kpi-pending').textContent = d.pending;
+    document.getElementById('kpi-exc').textContent     = d.open_exceptions;
+    document.getElementById('kpi-rate').textContent    = d.settlement_rate + '% settlement rate';
+    document.getElementById('exc-badge').textContent   = d.open_exceptions;
+
+    // Volume chart
+    mkChart('chart-vol', {
+      type: 'line',
+      data: {
+        labels: d.volume_7d.map(v => v.date),
+        datasets: [{
+          label: 'Transactions', data: d.volume_7d.map(v => v.count),
+          borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.07)',
+          tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: '#00d4ff'
+        }]
+      },
+      options: { responsive: true, plugins: {legend:{display:false}}, scales: {
+        x: {grid:{color:'#1e2d45'}}, y: {grid:{color:'#1e2d45'}, beginAtZero: true, ticks:{stepSize:1}}
+      }}
+    });
+
+    // Status donut
+    const statusMap = {Settled:d.settled, Pending:d.pending, Processing:d.processing, Failed:d.failed, Exception:d.exception};
+    mkChart('chart-status', {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(statusMap),
+        datasets: [{
+          data: Object.values(statusMap),
+          backgroundColor: ['rgba(10,255,157,.25)','rgba(255,184,0,.25)','rgba(0,212,255,.25)','rgba(255,71,87,.25)','rgba(167,139,250,.25)'],
+          borderColor:     ['#0aff9d','#ffb800','#00d4ff','#ff4757','#a78bfa'],
+          borderWidth: 2
+        }]
+      },
+      options: { responsive: true, cutout: '65%', plugins: { legend: { position:'right', labels:{boxWidth:12,font:{size:11}} }} }
+    });
+
+    // Recent table
+    const recent = await api('/api/transactions/?per_page=10');
+    document.getElementById('dash-recent').innerHTML = buildTxnTable(recent.transactions);
+
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── TRANSACTIONS ──────────────────────────────────────────────────────────────
+async function loadTransactions(page = 1) {
+  const search  = document.getElementById('f-search')?.value || '';
+  const status  = document.getElementById('f-status')?.value || '';
+  const type    = document.getElementById('f-type')?.value || '';
+  const channel = document.getElementById('f-channel')?.value || '';
+
+  document.getElementById('txn-table').innerHTML = loading();
+  try {
+    const params = new URLSearchParams({ page, per_page: 10, search, status, type, channel });
+    const d = await api(`/api/transactions/?${params}`);
+    document.getElementById('txn-label').textContent = `${d.total} records`;
+    document.getElementById('txn-table').innerHTML = buildTxnTable(d.transactions);
+    buildPagination('txn-pg-info','txn-pg-btns', d.total, d.pages, d.current_page, loadTransactions);
+  } catch(e) { document.getElementById('txn-table').innerHTML = empty(e.message); }
+}
+
+function buildTxnTable(rows) {
+  if (!rows || !rows.length) return empty();
+  return `<table>
+    <thead><tr><th>Txn ID</th><th>Date</th><th>Sender</th><th>Receiver</th><th>Amount (₹)</th><th>Type</th><th>Channel</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>${rows.map(t => `<tr>
+      <td class="mono">${t.id.slice(-12)}</td>
+      <td class="mono">${fmtDate(t.date)}</td>
+      <td>${t.sender}</td><td>${t.receiver}</td>
+      <td class="mono" style="color:${t.txn_type==='Credit'?'var(--success)':t.txn_type==='Refund'?'var(--warn)':'var(--text)'}">₹${fmt(t.amount)}</td>
+      <td style="font-size:11px;color:var(--muted)">${t.txn_type}</td>
+      <td style="font-size:11px;color:var(--accent)">${t.channel}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="viewTxn('${t.id}')">View</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// ── SETTLEMENT ────────────────────────────────────────────────────────────────
+async function loadSettlement(page = 1) {
+  try {
+    const sum = await api('/api/settlements/summary');
+    document.getElementById('s-rate').textContent   = sum.settlement_rate + '%';
+    document.getElementById('s-amount').textContent = '₹' + fmt(sum.total_amount);
+    document.getElementById('s-modes').textContent  = `${sum.manual_count}M / ${sum.auto_count}A`;
+
+    const params = new URLSearchParams({ page, per_page: 10 });
+    const d = await api(`/api/settlements/?${params}`);
+    document.getElementById('settlement-table').innerHTML =
+      d.settlements.length
+        ? `<table>
+            <thead><tr><th>Settlement ID</th><th>Txn ID</th><th>Settled At</th><th>Amount (₹)</th><th>Mode</th><th>Remarks</th></tr></thead>
+            <tbody>${d.settlements.map(s => `<tr>
+              <td class="mono">${s.id}</td>
+              <td class="mono" style="color:var(--accent)">${s.transaction_id}</td>
+              <td class="mono">${fmtDate(s.settled_at)}</td>
+              <td class="mono" style="color:var(--success)">₹${fmt(s.settled_amount)}</td>
+              <td><span style="font-size:11px;color:${s.settlement_mode==='Auto'?'var(--accent)':'var(--warn)'}">${s.settlement_mode}</span></td>
+              <td style="color:var(--muted);font-size:12px">${s.remarks}</td>
+            </tr>`).join('')}</tbody></table>`
+        : empty();
+    buildPagination('s-pg-info','s-pg-btns', d.total, d.pages, d.current_page, loadSettlement);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function settleAllPending() {
+  try {
+    const d = await api('/api/transactions/actions/settle-all-pending', { method:'POST' });
+    toast(d.message, 'success');
+    loadSettlement(1);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── EXCEPTIONS ────────────────────────────────────────────────────────────────
+async function loadExceptions(page = 1) {
+  const severity = document.getElementById('ef-sev')?.value || '';
+  const status   = document.getElementById('ef-status')?.value || '';
+  document.getElementById('exc-table').innerHTML = loading();
+  try {
+    const params = new URLSearchParams({ page, per_page: 10, severity, status });
+    const d = await api(`/api/exceptions/?${params}`);
+    document.getElementById('exc-label').textContent = `${d.total} total · ${d.open_count} open`;
+    document.getElementById('exc-badge').textContent = d.open_count;
+    document.getElementById('exc-table').innerHTML =
+      d.exceptions.length
+        ? `<table>
+            <thead><tr><th>Exc ID</th><th>Txn ID</th><th>Type</th><th>Detected</th><th>Severity</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>${d.exceptions.map(e => `<tr>
+              <td class="mono">${e.id}</td>
+              <td class="mono" style="color:var(--accent)">${e.transaction_id}</td>
+              <td style="font-size:12px;max-width:180px">${e.exception_type}</td>
+              <td class="mono">${fmtDate(e.detected_at)}</td>
+              <td>${sevBadge(e.severity)}</td>
+              <td>${statusBadge(e.status)}</td>
+              <td style="display:flex;gap:6px;flex-wrap:wrap">
+                ${e.status !== 'Resolved' ? `<button class="btn btn-success" style="padding:4px 10px;font-size:11px" onclick="resolveExc('${e.id}')">✓ Resolve</button>` : ''}
+                <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="viewExc('${e.id}')">View</button>
+              </td>
+            </tr>`).join('')}</tbody></table>`
+        : empty('✓ No exceptions match the current filter.');
+    buildPagination('exc-pg-info','exc-pg-btns', d.total, d.pages, d.current_page, loadExceptions);
+  } catch(e) { document.getElementById('exc-table').innerHTML = empty(e.message); }
+}
+
+async function resolveExc(id) {
+  try {
+    await api(`/api/exceptions/${id}/resolve`, { method:'POST', body: JSON.stringify({resolved_by:'Operator', note:'Resolved via dashboard'}) });
+    toast('Exception resolved!', 'success');
+    loadExceptions(1);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function resolveAll() {
+  try {
+    const d = await api('/api/exceptions/actions/resolve-all', { method:'POST' });
+    toast(d.message, 'success');
+    loadExceptions(1);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function detectExceptions() {
+  toast('Running exception detection engine…', 'info');
+  try {
+    const d = await api('/api/exceptions/actions/detect', { method:'POST' });
+    toast(d.message, d.new_exceptions > 0 ? 'error' : 'success');
+    loadExceptions(1);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── RECONCILIATION ────────────────────────────────────────────────────────────
+async function loadReconcile() {
+  try {
+    const latest = await api('/api/reconciliation/latest');
+    if (latest && latest.matched !== undefined) {
+      document.getElementById('r-matched').textContent   = latest.matched;
+      document.getElementById('r-unmatched').textContent = latest.unmatched;
+      document.getElementById('r-rate').textContent      = latest.match_rate + '%';
+      setTimeout(() => { document.getElementById('r-bar').style.width = latest.match_rate + '%'; }, 100);
+    }
+    const hist = await api('/api/reconciliation/history?per_page=20');
+    document.getElementById('recon-table').innerHTML =
+      hist.runs.length
+        ? `<table>
+            <thead><tr><th>Run ID</th><th>Run At</th><th>Checked</th><th>Matched</th><th>Unmatched</th><th>Exceptions</th><th>Match Rate</th><th>Result</th></tr></thead>
+            <tbody>${hist.runs.map(r => `<tr>
+              <td class="mono">${r.id}</td>
+              <td class="mono">${fmtDate(r.run_at)}</td>
+              <td class="mono">${r.total_checked}</td>
+              <td class="mono" style="color:var(--success)">${r.matched}</td>
+              <td class="mono" style="color:var(--danger)">${r.unmatched}</td>
+              <td class="mono" style="color:${r.exceptions_found?'var(--warn)':'var(--muted)'}">${r.exceptions_found}</td>
+              <td class="mono" style="color:var(--accent)">${r.match_rate}%</td>
+              <td>${statusBadge(r.exceptions_found ? 'Exceptions Found' : 'Clean')}</td>
+            </tr>`).join('')}</tbody></table>`
+        : empty('No reconciliation runs yet.');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function apiReconcile() {
+  toast('Running reconciliation engine…', 'info');
+  try {
+    const d = await api('/api/reconciliation/run', { method:'POST', body: JSON.stringify({triggered_by:'Manual'}) });
+    toast(d.message, 'success');
+    if (document.getElementById('page-reconcile').classList.contains('active')) loadReconcile();
+    loadDashboard();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── ADD TRANSACTION ───────────────────────────────────────────────────────────
+function initNewForm() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('nf-date').value = now.toISOString().slice(0, 16);
+}
+
+function clearNewForm() {
+  ['nf-sender','nf-receiver','nf-amount','nf-ref','nf-notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  initNewForm();
+}
+
+async function submitNewTransaction() {
+  const sender   = document.getElementById('nf-sender').value.trim();
+  const receiver = document.getElementById('nf-receiver').value.trim();
+  const amount   = parseFloat(document.getElementById('nf-amount').value);
+  if (!sender || !receiver || !amount || amount <= 0) {
+    toast('Please fill in Sender, Receiver, and Amount.', 'error'); return;
+  }
+  const body = {
+    sender, receiver, amount,
+    date:         document.getElementById('nf-date').value,
+    txn_type:     document.getElementById('nf-type').value,
+    channel:      document.getElementById('nf-channel').value,
+    status:       document.getElementById('nf-status').value,
+    reference_no: document.getElementById('nf-ref').value,
+    notes:        document.getElementById('nf-notes').value,
+  };
+  try {
+    const t = await api('/api/transactions/', { method:'POST', body: JSON.stringify(body) });
+    toast(`Transaction ${t.id} submitted!`, 'success');
+    clearNewForm();
+    setTimeout(() => showPage('transactions', null), 600);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── REPORTS ───────────────────────────────────────────────────────────────────
+async function loadReports() {
+  try {
+    const d = await api('/api/dashboard/stats');
+    const excSum = await api('/api/exceptions/summary');
+
+    // Channel bar
+    mkChart('chart-ch', {
+      type: 'bar',
+      data: {
+        labels: d.by_channel.map(c => c.channel),
+        datasets: [{
+          data: d.by_channel.map(c => c.count),
+          backgroundColor: d.by_channel.map((_, i) => `hsl(${i * 50 + 180},70%,40%)`),
+          borderRadius: 5
+        }]
+      },
+      options: { responsive: true, plugins:{legend:{display:false}},
+        scales: { x:{grid:{color:'#1e2d45'}}, y:{grid:{color:'#1e2d45'}, beginAtZero:true} } }
+    });
+
+    // Amount donut
+    mkChart('chart-amt', {
+      type: 'doughnut',
+      data: {
+        labels: d.by_type_amount.map(t => t.type),
+        datasets: [{
+          data: d.by_type_amount.map(t => t.amount),
+          backgroundColor: ['rgba(10,255,157,.3)','rgba(255,71,87,.3)','rgba(255,184,0,.3)','rgba(0,212,255,.3)'],
+          borderColor:     ['#0aff9d','#ff4757','#ffb800','#00d4ff'],
+          borderWidth: 2
+        }]
+      },
+      options: { responsive: true, cutout:'60%', plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}} }
+    });
+
+    // Severity donut
+    const sevData = excSum.by_severity;
+    mkChart('chart-sev', {
+      type: 'doughnut',
+      data: {
+        labels: ['Critical','High','Medium','Low'],
+        datasets: [{
+          data: [sevData.Critical, sevData.High, sevData.Medium, sevData.Low],
+          backgroundColor: ['rgba(255,71,87,.3)','rgba(255,184,0,.3)','rgba(167,139,250,.3)','rgba(100,116,139,.2)'],
+          borderColor:     ['#ff4757','#ffb800','#a78bfa','#64748b'],
+          borderWidth: 2
+        }]
+      },
+      options: { responsive:true, cutout:'60%', plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}} }
+    });
+
+    // Summary table by type
+    document.getElementById('report-table').innerHTML = `<table>
+      <thead><tr><th>Type</th><th>Count</th><th>Total Amount (₹)</th><th>Avg Amount (₹)</th></tr></thead>
+      <tbody>${d.by_type_amount.map(t => {
+        const txns = d.total;
+        return `<tr>
+          <td style="font-weight:600">${t.type}</td>
+          <td class="mono">—</td>
+          <td class="mono" style="color:var(--success)">₹${fmt(t.amount)}</td>
+          <td class="mono">—</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function exportCSV() {
+  try {
+    const d = await api('/api/transactions/?per_page=1000');
+    const rows = [['ID','Date','Sender','Receiver','Amount','Type','Channel','Status','Notes']];
+    d.transactions.forEach(t => rows.push([t.id, t.date, t.sender, t.receiver, t.amount, t.txn_type, t.channel, t.status, t.notes]));
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv,' + encodeURIComponent(csv);
+    a.download = 'transactions_export.csv';
+    a.click();
+    toast('CSV exported!', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── VIEW MODALS ───────────────────────────────────────────────────────────────
+async function viewTxn(id) {
+  try {
+    const t = await api(`/api/transactions/${id}`);
+    document.getElementById('modal-title').textContent = 'Transaction Details';
+    document.getElementById('modal-sub').textContent   = t.id;
+    document.getElementById('modal-body').innerHTML = `
+      ${dr('Transaction ID', `<span class="mono">${t.id}</span>`)}
+      ${dr('Date & Time', fmtDate(t.date))}
+      ${dr('Sender', t.sender)}
+      ${dr('Receiver', t.receiver)}
+      ${dr('Amount', `<span class="mono" style="color:${t.txn_type==='Credit'?'var(--success)':'var(--text)'}">₹${fmt(t.amount)}</span>`)}
+      ${dr('Type', t.txn_type)}
+      ${dr('Channel', t.channel)}
+      ${dr('Status', statusBadge(t.status))}
+      ${dr('Reference', t.reference_no || '—')}
+      ${dr('Notes', t.notes || '—')}
+      ${t.settlement ? dr('Settlement ID', `<span class="mono" style="color:var(--success)">${t.settlement.id}</span>`) : ''}
+      ${t.exceptions.length ? dr('Exceptions', t.exceptions.map(e=>`<span class="sev-${e.severity.toLowerCase()}">${e.exception_type}</span>`).join('<br>')) : ''}
+      <div style="padding:16px 20px;display:flex;gap:8px;flex-wrap:wrap">
+        ${t.status !== 'Settled' ? `<button class="btn btn-success" onclick="quickSettle('${t.id}')">✓ Mark Settled</button>` : ''}
+        ${t.status === 'Failed'  ? `<button class="btn btn-warn"    onclick="quickRetry('${t.id}')">↻ Retry</button>` : ''}
+      </div>`;
+    openModal();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function viewExc(id) {
+  try {
+    const e = await api(`/api/exceptions/${id}`);
+    document.getElementById('modal-title').textContent = 'Exception Details';
+    document.getElementById('modal-sub').textContent   = e.id;
+    document.getElementById('modal-body').innerHTML = `
+      ${dr('Exception ID',    `<span class="mono">${e.id}</span>`)}
+      ${dr('Transaction ID',  `<span class="mono" style="color:var(--accent)">${e.transaction_id}</span>`)}
+      ${dr('Type',            e.exception_type)}
+      ${dr('Severity',        sevBadge(e.severity))}
+      ${dr('Status',          statusBadge(e.status))}
+      ${dr('Detected At',     fmtDate(e.detected_at))}
+      ${dr('Description',     e.description)}
+      ${e.resolved_at ? dr('Resolved At', fmtDate(e.resolved_at)) : ''}
+      ${e.resolved_by ? dr('Resolved By', e.resolved_by) : ''}
+      ${e.resolution_note ? dr('Resolution Note', e.resolution_note) : ''}
+      <div style="padding:16px 20px">
+        ${e.status !== 'Resolved'
+          ? `<button class="btn btn-success" onclick="resolveExc('${e.id}');closeModal()">✓ Mark Resolved</button>`
+          : '<span style="color:var(--success);font-size:13px">✓ This exception has been resolved.</span>'}
+      </div>`;
+    openModal();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function quickSettle(id) {
+  try {
+    await api(`/api/transactions/${id}/status`, { method:'PATCH', body: JSON.stringify({status:'Settled', remarks:'Quick settled from dashboard'}) });
+    toast('Transaction marked as Settled!', 'success');
+    closeModal();
+    if (document.getElementById('page-transactions').classList.contains('active')) loadTransactions(1);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function quickRetry(id) {
+  try {
+    await api(`/api/transactions/${id}/status`, { method:'PATCH', body: JSON.stringify({status:'Processing'}) });
+    toast('Transaction requeued for processing.', 'info');
+    closeModal();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function dr(k, v) {
+  return `<div class="detail-row"><div class="detail-key">${k}</div><div class="detail-val">${v}</div></div>`;
+}
+function openModal()  { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span>${{success:'✓',error:'⚠',info:'ℹ'}[type]||'ℹ'}</span>${msg}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadDashboard();
+{% endraw %}
+</script>
+</body>
+</html>

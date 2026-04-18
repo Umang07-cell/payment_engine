@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: payment-engine
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 2
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:///payment_engine.db
