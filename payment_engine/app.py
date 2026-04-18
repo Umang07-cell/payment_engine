@@ -12,16 +12,22 @@ from routes.reconciliation import reconciliation_bp
 from routes.dashboard import dashboard_bp
 import os
 
+
 def create_app():
     app = Flask(__name__)
 
     # ── Configuration ──────────────────────────────────────────────────────────
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['SECRET_KEY'] = 'payment-engine-secret-2024'
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-        os.environ.get('DATABASE_URL') or
-        'sqlite:///' + os.path.join(basedir, 'payment_engine.db')
-    )
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'payment-engine-secret-2024')
+
+    # Fix for Render PostgreSQL URL
+    database_url = os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(basedir, 'payment_engine.db')
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql+psycopg2://', 1)
+    elif database_url.startswith('postgresql://'):
+        database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # ── Init Extensions ─────────────────────────────────────────────────────────
