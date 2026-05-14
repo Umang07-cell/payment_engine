@@ -26,6 +26,7 @@
   .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#000;font-family:var(--mono);}
   .logo-text{font-size:13px;font-weight:600;line-height:1.3;}
   .logo-sub{font-size:10px;color:var(--muted);font-family:var(--mono);}
+  .sidebar-close{display:none;margin-left:auto;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:4px;}
   nav{padding:16px 0;flex:1;}
   .nav-label{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:8px 18px 4px;font-family:var(--mono);}
   .nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .15s;border-left:2px solid transparent;}
@@ -161,6 +162,27 @@
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 
   @media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr;}.charts-grid{grid-template-columns:1fr;}}
+
+  /* ── MOBILE HAMBURGER & SIDEBAR ── */
+  .hamburger{display:none;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:18px;line-height:1;margin-right:12px;}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:98;}
+  .overlay.open{display:block;}
+  @media(max-width:768px){
+    .sidebar{position:fixed;top:0;left:0;height:100%;z-index:99;transform:translateX(-100%);transition:transform .25s ease;}
+    .sidebar.open{transform:translateX(0);}
+    .sidebar-close{display:block;}
+    .hamburger{display:inline-flex;align-items:center;justify-content:center;}
+    .topbar{padding:12px 16px;}
+    .content{padding:14px;}
+    .kpi-grid{grid-template-columns:1fr 1fr;}
+    .charts-grid{grid-template-columns:1fr;}
+    .recon-grid{grid-template-columns:1fr;}
+    .form-grid{grid-template-columns:1fr;}
+    .form-group.full{grid-column:1;}
+    table{min-width:600px;}
+    .card-header{overflow-x:auto;}
+    .modal{width:95vw;}
+  }
 </style>
 </head>
 <body>
@@ -181,14 +203,18 @@
   </div>
 </div>
 
+<!-- MOBILE OVERLAY -->
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
 <div class="wrapper">
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <div class="logo">
       <div class="logo-icon">PS</div>
       <div>
         <div class="logo-text">PaySettle Engine</div>
         <div class="logo-sub">v2.1 · Flask + SQLite</div>
       </div>
+      <button class="sidebar-close" onclick="closeSidebar()">✕</button>
     </div>
     <nav>
       <div class="nav-label">Core</div>
@@ -210,9 +236,12 @@
 
   <div class="main">
     <div class="topbar">
-      <div>
-        <div class="page-title" id="page-title">Dashboard</div>
-        <div class="page-sub" id="page-sub">Real-time settlement monitoring</div>
+      <div style="display:flex;align-items:center;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <div>
+          <div class="page-title" id="page-title">Dashboard</div>
+          <div class="page-sub" id="page-sub">Real-time settlement monitoring</div>
+        </div>
       </div>
       <div class="topbar-actions">
         <button class="btn btn-ghost" onclick="apiReconcile()">⟳ Reconcile Now</button>
@@ -236,7 +265,7 @@
         </div>
         <div class="card">
           <div class="card-header"><div><div class="card-title">Recent Transactions</div><div class="card-sub">Latest 10 entries</div></div><button class="btn btn-ghost" onclick="showPage('transactions',null)">View All →</button></div>
-          <div id="dash-recent"></div>
+          <div style="overflow-x:auto"><div id="dash-recent"></div></div>
         </div>
       </div>
 
@@ -261,7 +290,7 @@
               </select>
             </div>
           </div>
-          <div id="txn-table"></div>
+          <div style="overflow-x:auto"><div id="txn-table"></div></div>
           <div class="pagination"><span id="txn-pg-info"></span><div class="page-btns" id="txn-pg-btns"></div></div>
         </div>
       </div>
@@ -278,7 +307,7 @@
             <div><div class="card-title">Settled Transactions</div><div class="card-sub">Fully reconciled entries</div></div>
             <button class="btn btn-success" onclick="settleAllPending()">✓ Settle All Pending</button>
           </div>
-          <div id="settlement-table"></div>
+          <div style="overflow-x:auto"><div id="settlement-table"></div></div>
           <div class="pagination"><span id="s-pg-info"></span><div class="page-btns" id="s-pg-btns"></div></div>
         </div>
       </div>
@@ -299,7 +328,7 @@
               <button class="btn btn-success" onclick="resolveAll()">✓ Resolve All</button>
             </div>
           </div>
-          <div id="exc-table"></div>
+          <div style="overflow-x:auto"><div id="exc-table"></div></div>
           <div class="pagination"><span id="exc-pg-info"></span><div class="page-btns" id="exc-pg-btns"></div></div>
         </div>
       </div>
@@ -326,7 +355,7 @@
             <div><div class="card-title">Reconciliation History</div><div class="card-sub">All engine runs</div></div>
             <button class="btn btn-primary" onclick="apiReconcile()">⟳ Run Reconciliation</button>
           </div>
-          <div id="recon-table"></div>
+          <div style="overflow-x:auto"><div id="recon-table"></div></div>
         </div>
       </div>
 
@@ -380,6 +409,18 @@
 
 <script>
 {% raw %}
+// ── SIDEBAR MOBILE ────────────────────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 // ── API BASE ──────────────────────────────────────────────────────────────────
 const API = '';  // same origin — Flask serves this page
 
@@ -408,6 +449,7 @@ const pageMeta = {
 let activeNav = document.querySelector('.nav-item.active');
 
 function showPage(id, el) {
+  closeSidebar();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
   if (activeNav) activeNav.classList.remove('active');
@@ -482,7 +524,6 @@ async function loadDashboard() {
     document.getElementById('kpi-rate').textContent    = d.settlement_rate + '% settlement rate';
     document.getElementById('exc-badge').textContent   = d.open_exceptions;
 
-    // Volume chart
     mkChart('chart-vol', {
       type: 'line',
       data: {
@@ -498,7 +539,6 @@ async function loadDashboard() {
       }}
     });
 
-    // Status donut
     const statusMap = {Settled:d.settled, Pending:d.pending, Processing:d.processing, Failed:d.failed, Exception:d.exception};
     mkChart('chart-status', {
       type: 'doughnut',
@@ -514,7 +554,6 @@ async function loadDashboard() {
       options: { responsive: true, cutout: '65%', plugins: { legend: { position:'right', labels:{boxWidth:12,font:{size:11}} }} }
     });
 
-    // Recent table
     const recent = await api('/api/transactions/?per_page=10');
     document.getElementById('dash-recent').innerHTML = buildTxnTable(recent.transactions);
 
@@ -728,64 +767,42 @@ async function loadReports() {
     const d = await api('/api/dashboard/stats');
     const excSum = await api('/api/exceptions/summary');
 
-    // Channel bar
     mkChart('chart-ch', {
       type: 'bar',
       data: {
         labels: d.by_channel.map(c => c.channel),
-        datasets: [{
-          data: d.by_channel.map(c => c.count),
-          backgroundColor: d.by_channel.map((_, i) => `hsl(${i * 50 + 180},70%,40%)`),
-          borderRadius: 5
-        }]
+        datasets: [{ data: d.by_channel.map(c => c.count), backgroundColor: d.by_channel.map((_, i) => `hsl(${i * 50 + 180},70%,40%)`), borderRadius: 5 }]
       },
-      options: { responsive: true, plugins:{legend:{display:false}},
-        scales: { x:{grid:{color:'#1e2d45'}}, y:{grid:{color:'#1e2d45'}, beginAtZero:true} } }
+      options: { responsive: true, plugins:{legend:{display:false}}, scales: { x:{grid:{color:'#1e2d45'}}, y:{grid:{color:'#1e2d45'}, beginAtZero:true} } }
     });
 
-    // Amount donut
     mkChart('chart-amt', {
       type: 'doughnut',
       data: {
         labels: d.by_type_amount.map(t => t.type),
-        datasets: [{
-          data: d.by_type_amount.map(t => t.amount),
-          backgroundColor: ['rgba(10,255,157,.3)','rgba(255,71,87,.3)','rgba(255,184,0,.3)','rgba(0,212,255,.3)'],
-          borderColor:     ['#0aff9d','#ff4757','#ffb800','#00d4ff'],
-          borderWidth: 2
-        }]
+        datasets: [{ data: d.by_type_amount.map(t => t.amount), backgroundColor: ['rgba(10,255,157,.3)','rgba(255,71,87,.3)','rgba(255,184,0,.3)','rgba(0,212,255,.3)'], borderColor: ['#0aff9d','#ff4757','#ffb800','#00d4ff'], borderWidth: 2 }]
       },
       options: { responsive: true, cutout:'60%', plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}} }
     });
 
-    // Severity donut
     const sevData = excSum.by_severity;
     mkChart('chart-sev', {
       type: 'doughnut',
       data: {
         labels: ['Critical','High','Medium','Low'],
-        datasets: [{
-          data: [sevData.Critical, sevData.High, sevData.Medium, sevData.Low],
-          backgroundColor: ['rgba(255,71,87,.3)','rgba(255,184,0,.3)','rgba(167,139,250,.3)','rgba(100,116,139,.2)'],
-          borderColor:     ['#ff4757','#ffb800','#a78bfa','#64748b'],
-          borderWidth: 2
-        }]
+        datasets: [{ data: [sevData.Critical, sevData.High, sevData.Medium, sevData.Low], backgroundColor: ['rgba(255,71,87,.3)','rgba(255,184,0,.3)','rgba(167,139,250,.3)','rgba(100,116,139,.2)'], borderColor: ['#ff4757','#ffb800','#a78bfa','#64748b'], borderWidth: 2 }]
       },
       options: { responsive:true, cutout:'60%', plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:11}}}} }
     });
 
-    // Summary table by type
     document.getElementById('report-table').innerHTML = `<table>
       <thead><tr><th>Type</th><th>Count</th><th>Total Amount (₹)</th><th>Avg Amount (₹)</th></tr></thead>
-      <tbody>${d.by_type_amount.map(t => {
-        const txns = d.total;
-        return `<tr>
-          <td style="font-weight:600">${t.type}</td>
-          <td class="mono">—</td>
-          <td class="mono" style="color:var(--success)">₹${fmt(t.amount)}</td>
-          <td class="mono">—</td>
-        </tr>`;
-      }).join('')}</tbody></table>`;
+      <tbody>${d.by_type_amount.map(t => `<tr>
+        <td style="font-weight:600">${t.type}</td>
+        <td class="mono">—</td>
+        <td class="mono" style="color:var(--success)">₹${fmt(t.amount)}</td>
+        <td class="mono">—</td>
+      </tr>`).join('')}</tbody></table>`;
 
   } catch(e) { toast(e.message, 'error'); }
 }
@@ -825,7 +842,7 @@ async function viewTxn(id) {
       ${t.exceptions.length ? dr('Exceptions', t.exceptions.map(e=>`<span class="sev-${e.severity.toLowerCase()}">${e.exception_type}</span>`).join('<br>')) : ''}
       <div style="padding:16px 20px;display:flex;gap:8px;flex-wrap:wrap">
         ${t.status !== 'Settled' ? `<button class="btn btn-success" onclick="quickSettle('${t.id}')">✓ Mark Settled</button>` : ''}
-        ${t.status === 'Failed'  ? `<button class="btn btn-warn"    onclick="quickRetry('${t.id}')">↻ Retry</button>` : ''}
+        ${t.status === 'Failed'  ? `<button class="btn btn-warn" onclick="quickRetry('${t.id}')">↻ Retry</button>` : ''}
       </div>`;
     openModal();
   } catch(e) { toast(e.message, 'error'); }
