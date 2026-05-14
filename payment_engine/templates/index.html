@@ -7,6 +7,50 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+  /* ── HAMBURGER BUTTON ── */
+.hamburger {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ── OVERLAY ── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 98;
+}
+.overlay.open { display: block; }
+
+/* ── MOBILE RESPONSIVE ── */
+@media(max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100%;
+    z-index: 99;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .hamburger { display: block; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .recon-grid { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .table-wrap { overflow-x: auto; }
+  table { min-width: 600px; }
+  .content { padding: 14px; }
+  .page-sub { display: none; }
+}
   :root {
     --bg:#0a0e1a; --surface:#111827; --surface2:#1a2235; --border:#1e2d45;
     --accent:#00d4ff; --accent2:#0aff9d; --warn:#ffb800; --danger:#ff4757;
@@ -180,7 +224,7 @@
     <div id="modal-body"></div>
   </div>
 </div>
-
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 <div class="wrapper">
   <div class="sidebar">
     <div class="logo">
@@ -211,6 +255,7 @@
   <div class="main">
     <div class="topbar">
       <div>
+        <button class="hamburger" onclick="openSidebar()">☰</button>
         <div class="page-title" id="page-title">Dashboard</div>
         <div class="page-sub" id="page-sub">Real-time settlement monitoring</div>
       </div>
@@ -380,6 +425,14 @@
 
 <script>
 {% raw %}
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
 // ── API BASE ──────────────────────────────────────────────────────────────────
 const API = '';  // same origin — Flask serves this page
 
@@ -408,6 +461,7 @@ const pageMeta = {
 let activeNav = document.querySelector('.nav-item.active');
 
 function showPage(id, el) {
+  closeSidebar();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
   if (activeNav) activeNav.classList.remove('active');
